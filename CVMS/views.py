@@ -5,11 +5,12 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime
 from django.db import models
 from django.shortcuts import get_object_or_404
 from .serializers import *
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
+from django.core.cache import cache
 
 
 class VehicleDistanceView(APIView):
@@ -18,7 +19,14 @@ class VehicleDistanceView(APIView):
         # Calculate the date 30 days ago from today
         thirty_days_ago = timezone.now() - timedelta(days=30)
 
-        vehicles = Vehicle.objects.all()
+        if cache.get("vehicles"):
+            print("from cache")
+            vehicles = cache.get("vehicles")
+        else:
+            vehicles = Vehicle.objects.all()
+            print("from db")
+            cache.set("vehicles", vehicles)
+            cache.expire_at("vehicles", datetime.now() + timedelta(hours=1))
 
         for vehicle in vehicles:
 
@@ -58,13 +66,25 @@ class SingleVehicleDistanceView(APIView):
 class SensorAnomaliesView(APIView):
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
     def get(self, request):
-        speed_anomalies = Sensor.objects.filter(
-            sensor_type='Speed', sensor_reading__gt=120)
-        fuel_anomalies = Sensor.objects.filter(
-            sensor_type='Fuel Level', sensor_reading__lt=10)
+        if cache.get("vehicle_anomalies"):
+            anomalies = cache.get("vehicle_anomalies")
+        else:
+            if cache.get("vehicle_sensors"):
+                sensors = cache.get("vehicle_sensors")
+            else:
+                sensors = Sensor.objects.all()
+                cache.set("vehicle_sensors", sensors)
+                cache.expire_at("vehicle_sensors", datetime.now() + timedelta(hours=1))
+            speed_anomalies = sensors.filter(
+                sensor_type='Speed', sensor_reading__gt=120)
+            fuel_anomalies = Sensor.objects.filter(
+                sensor_type='Fuel Level', sensor_reading__lt=10)
 
-        # combining both anomaly sets
-        anomalies = speed_anomalies | fuel_anomalies
+            # combining both anomaly sets
+            anomalies = speed_anomalies | fuel_anomalies
+            
+            cache.set("vehicle_anomalies", anomalies)
+            cache.expire_at("vehicle_anomalies", datetime.now() + timedelta(hours=1))
 
         serializer = SensorAnomaliesSerializer(anomalies, many=True)
 
@@ -95,7 +115,6 @@ class FrequentTripsView(APIView):
                 trip__start_time__gte=seven_days_ago))
         ).filter(number_of_trips__gt=5)
         
-        print(frequent_trip_vehicles)
 
         serializer = FrequentTripsSerializer(frequent_trip_vehicles, many=True)
 
@@ -105,10 +124,18 @@ class FrequentTripsView(APIView):
 class VehiclesView(APIView):
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
     def get(self, request):
-        vehicles = Vehicle.objects.all()
+        if cache.get("vehicles"):
+            print("from cache")
+            vehicles = cache.get("vehicles")
+        else:
+            vehicles = Vehicle.objects.all()
+            print("from db")
+            cache.set("vehicles", vehicles)
+            cache.expire_at("vehicles", datetime.now() + timedelta(hours=1))
         make = request.query_params.get('make')
         if make: 
             vehicles = vehicles.filter(make=make)
+        
         serializer = VehicleSerializer(vehicles, many=True)
 
         return Response(serializer.data)
@@ -117,12 +144,29 @@ class VehiclesView(APIView):
         serialized_item = VehicleSerializer(data = request.data)
         serialized_item.is_valid(raise_exception=True)
         serialized_item.save()
+        cache.expire("vehicles", 0)
         return Response(serialized_item.data, status=status.HTTP_201_CREATED)
+    
+    def delete(self, request):
+        id = request.query_params.get("id")
+        if id:
+            vehicle = get_object_or_404(Vehicle, pk=id)
+            vehicle.delete()
+            cache.delete_many(keys=cache.keys('*vehicle*'))
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
  
 class OwnersView(APIView):
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
     def get(self, request):
-        owners = Owner.objects.all()
+        if cache.get("owners"):
+            print("from cache")
+            owners = cache.get("owners")
+        else:
+            owners = Owner.objects.all()
+            print("from db")
+            cache.set("owners", owners)
+            cache.expire_at("owners", datetime.now() + timedelta(hours=1))
         serializer = OwnerSerializer(owners, many=True) 
         return Response(serializer.data)
 
@@ -130,7 +174,19 @@ class OwnersView(APIView):
         serialized_item = OwnerSerializer(data = request.data)
         serialized_item.is_valid(raise_exception=True)
         serialized_item.save()
+        cache.delete("owners")
+        # cache.delete_many(keys=cache.keys('*.vehicle.*'))
         return Response(serialized_item.data, status=status.HTTP_201_CREATED)
+    
+    def delete(self, request):
+        id = request.query_params.get("id")
+        if id:
+            owner = get_object_or_404(Owner, pk=id)
+            owner.delete()
+            cache.delete("owners")
+            cache.delete_many(keys=cache.keys('*vehicle*'))
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 class SingleVehiclesView(APIView):
@@ -144,7 +200,12 @@ class SingleVehiclesView(APIView):
 class TripView(APIView):
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
     def get(self, request):
-        trips = Trip.objects.all()
+        if cache.get("vehicle_trips"):
+            trips = cache.get("vehicle_trips")
+        else:
+            trips = Trip.objects.all()
+            cache.set("vehicle_trips", trips)
+            cache.expire_at("vehicle_trips", datetime.now() + timedelta(hours=1))
         serializer = TripSerializer(trips, many=True)
         return Response(serializer.data)
     
@@ -152,13 +213,20 @@ class TripView(APIView):
         serialized_item = TripSerializer(data = request.data)
         serialized_item.is_valid(raise_exception=True)
         serialized_item.save()
+        cache.delete("vehicle_trips")
         return Response(serialized_item.data, status=status.HTTP_201_CREATED)
 
 
 class SensorView(APIView):
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
     def get(self, request):
-        sensors = Sensor.objects.all()
+        if cache.get("vehicle_sensors"):
+            sensors = cache.get("vehicle_sensors")
+        else:
+            sensors = Sensor.objects.all()
+            print("from db")
+            cache.set("vehicle_sensors", sensors)
+            cache.expire_at("vehicle_sensors", datetime.now() + timedelta(hours=1))
         serializer = SensorSerializer(sensors, many=True)
         return Response(serializer.data)
     
@@ -166,13 +234,19 @@ class SensorView(APIView):
         serialized_item = SensorSerializer(data = request.data)
         serialized_item.is_valid(raise_exception=True)
         serialized_item.save()
+        cache.delete("vehicle_sensors")
         return Response(serialized_item.data, status=status.HTTP_201_CREATED)
 
 
 class MaintenanceView(APIView):
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
     def get(self, request):
-        maintenance_records = Maintenance.objects.all()
+        if cache.get("vehicle_maintenance"):
+            maintenance_records = cache.get("vehicle_maintenance")
+        else:
+            maintenance_records = Maintenance.objects.all()
+            cache.set("vehicle_maintenance", maintenance_records)
+            cache.expire_at("vehicle_maintenance", datetime.now() + timedelta(hours=1))
         serializer = MaintenanceSerializer(maintenance_records, many=True)
         return Response(serializer.data)
     
@@ -180,4 +254,5 @@ class MaintenanceView(APIView):
         serialized_item = MaintenanceSerializer(data = request.data)
         serialized_item.is_valid(raise_exception=True)
         serialized_item.save()
+        cache.delete("vehicle_maintenance")
         return Response(serialized_item.data, status=status.HTTP_201_CREATED)
