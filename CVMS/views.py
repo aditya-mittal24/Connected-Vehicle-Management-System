@@ -1,6 +1,6 @@
 from .models import Vehicle, Trip
 from django.db.models import Count, Q
-from .models import Owner, Trip, Vehicle, Maintenance, Sensor
+from .models import *
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
@@ -8,7 +8,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db import models
 from django.shortcuts import get_object_or_404
-from .serializers import VehicleSerializer, OwnerSerializer, TripSerializer, MaintenanceSerializer, SensorSerializer, MaintenanceHistorySerializer, VehicleDistanceSerializer, SensorAnomaliesSerializer, FrequentTripsSerializer
+from .serializers import *
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 
 

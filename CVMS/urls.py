@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import VehicleDistanceView, SingleVehicleDistanceView, SensorAnomaliesView, MaintenanceHistoryView, FrequentTripsView, VehiclesView, OwnersView, SingleVehiclesView, SensorView, MaintenanceView, TripView
+from .views import *
 
 urlpatterns = [
     path('', VehiclesView.as_view(), name='vehicle-list'),  # lists all vehicles

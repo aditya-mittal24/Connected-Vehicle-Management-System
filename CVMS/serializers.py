@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Vehicle, Trip, Owner, Maintenance, Sensor
+from .models import *
 
 
 class VehicleDistanceSerializer(serializers.ModelSerializer):
