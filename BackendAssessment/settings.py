@@ -28,7 +28,7 @@ SECRET_KEY = 'django-insecure-yv-%o&0)j1r%n9=z@i#xvu@l7m-q3-!3m6$jbj_fds%bk8wmci
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["127.0.0.1", "*", "localhost"]
 
 
 # Application definition
@@ -45,6 +45,9 @@ INSTALLED_APPS = [
 ]
 
 REST_FRAMEWORK = {
+    # 'DEFAULT_RENDERER_CLASSES': (
+    #     'rest_framework.renderers.JSONRenderer',
+    # ),
     'DEFAULT_THROTTLE_CLASSES': ['rest_framework.throttling.AnonRateThrottle', 'rest_framework.throttling.UserRateThrottle'],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '10/minute',
